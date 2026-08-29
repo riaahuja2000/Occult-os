@@ -33,7 +33,7 @@ def _sum_letters(name: str, which: str = "all") -> int:
         if which == "consonants" and ch in VOWELS:
             continue
         total += _LETTER[ch]
-    return _reduce(total)
+    return _reduce(total) or 9
 
 
 def life_path(d: date) -> int:

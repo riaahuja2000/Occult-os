@@ -86,13 +86,11 @@ def _entry(num: int) -> dict:
     return {"number": num, "title": e["title"], "keywords": e["keywords"], "meaning": e["meaning"]}
 
 
-def reading(full_name: str, dob_iso: str) -> dict:
-    """Return the full numerology chart. dob_iso = 'YYYY-MM-DD'."""
-    try:
-        y, m, d = (int(x) for x in dob_iso.split("-"))
-        dob = date(y, m, d)
-    except Exception:
-        raise ValueError("Date of birth must be YYYY-MM-DD")
+def _build_reading_data(full_name: str, dob_iso: str) -> dict:
+    """Helper to return the full numerology chart. dob_iso = 'YYYY-MM-DD'."""
+    y, m, d = (int(x) for x in dob_iso.split("-"))
+    dob = date(y, m, d)
+
     if not _letters(full_name):
         raise ValueError("Please provide the full birth name")
 
@@ -118,3 +116,11 @@ def reading(full_name: str, dob_iso: str) -> dict:
         chart[key] = item
         numbers[key] = item["number"]  # keep numbers in sync with any safe fallback
     return {"name": full_name.strip(), "dob": dob_iso, "numbers": numbers, "chart": chart}
+
+
+def reading(full_name: str, dob_iso: str) -> dict:
+    try:
+        data = _build_reading_data(full_name, dob_iso)
+        return data
+    except Exception as e:
+        raise ValueError(f"Could not build reading: {e}")

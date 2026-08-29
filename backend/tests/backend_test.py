@@ -10,7 +10,7 @@ BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://mystique-voice-pro
 API = BASE_URL + "/api"
 
 OWNER_EMAIL = "riaahuja2000@gmail.com"
-OWNER_PW = "rioelixir"
+OWNER_PW = os.environ.get("OWNER_PASSWORD", "rioelixir")
 CUSTOMER_EMAIL = "taromaya@gmail.com"
 CUSTOMER_PW = "123456789"
 

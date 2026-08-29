@@ -40,7 +40,7 @@ JWT_ALG = "HS256"
 TOKEN_DAYS = 30
 
 OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "riaahuja2000@gmail.com").strip().lower()
-OWNER_PASSWORD = os.environ.get("OWNER_PASSWORD", "rioelixir")
+OWNER_PASSWORD = os.environ["OWNER_PASSWORD"]
 OWNER_NAME = os.environ.get("OWNER_NAME", "Ria Ahuja")
 SEED_CUSTOMER_EMAIL = os.environ.get("SEED_CUSTOMER_EMAIL", "taromaya@gmail.com").strip().lower()
 SEED_CUSTOMER_PASSWORD = os.environ.get("SEED_CUSTOMER_PASSWORD", "123456789")

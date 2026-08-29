@@ -1,6 +1,6 @@
 import { renderHook, act } from "@testing-library/react-hooks";
-import { useAudio, playUrl, stopAudio } from "./audio";
-import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import { useAudio, stopAudio } from "./audio";
+import { setAudioModeAsync } from "expo-audio";
 
 // Mock expo-audio
 const mockPlay = jest.fn();
@@ -117,7 +117,7 @@ describe("useAudio", () => {
       await act(async () => {
         await result.current.play("http://example.com/error.mp3");
       });
-    } catch (e) {
+    } catch {
       // expected error
     }
 

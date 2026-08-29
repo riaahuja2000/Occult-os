@@ -27,7 +27,9 @@ import tarot
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("velora")
 
 # ---------------------------------------------------------------- config / db
@@ -42,12 +44,16 @@ TOKEN_DAYS = 30
 OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "riaahuja2000@gmail.com").strip().lower()
 OWNER_PASSWORD = os.environ.get("OWNER_PASSWORD", "rioelixir")
 OWNER_NAME = os.environ.get("OWNER_NAME", "Ria Ahuja")
-SEED_CUSTOMER_EMAIL = os.environ.get("SEED_CUSTOMER_EMAIL", "taromaya@gmail.com").strip().lower()
+SEED_CUSTOMER_EMAIL = (
+    os.environ.get("SEED_CUSTOMER_EMAIL", "taromaya@gmail.com").strip().lower()
+)
 SEED_CUSTOMER_PASSWORD = os.environ.get("SEED_CUSTOMER_PASSWORD", "123456789")
 SEED_CUSTOMER_NAME = os.environ.get("SEED_CUSTOMER_NAME", "Maya")
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
-STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_BASE = (
+    os.environ.get("INTEGRATION_PROXY_URL") or ""
+).strip() or "https://integrations.emergentagent.com"
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
 APP_SLUG = "velora-occult-voice"
 
@@ -70,7 +76,9 @@ bearer = HTTPBearer(auto_error=False)
 
 # ---------------------------------------------------------------- helpers
 def hash_pw(pw: str) -> str:
-    return bcrypt.hashpw(pw.encode("utf-8")[:72], bcrypt.gensalt(rounds=12)).decode("utf-8")
+    return bcrypt.hashpw(pw.encode("utf-8")[:72], bcrypt.gensalt(rounds=12)).decode(
+        "utf-8"
+    )
 
 
 def verify_pw(pw: str, hashed: str) -> bool:
@@ -107,7 +115,9 @@ def public_user(u: dict) -> dict:
     }
 
 
-async def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer)) -> dict:
+async def get_current_user(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
+) -> dict:
     if not creds:
         raise HTTPException(401, "Not authenticated")
     try:
@@ -118,7 +128,9 @@ async def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depen
     if not user or payload.get("tv") != user.get("token_version", 0):
         raise HTTPException(401, "Session expired")
     if not user.get("active", True):
-        raise HTTPException(403, "Your account has been deactivated. Contact the keeper.")
+        raise HTTPException(
+            403, "Your account has been deactivated. Contact the keeper."
+        )
     return user
 
 
@@ -205,17 +217,19 @@ async def ensure_user(email: str, password: str, name: str, role: str):
     if existing:
         return
     now = datetime.now(timezone.utc).isoformat()
-    await db.users.insert_one({
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "email": email,
-        "password_hash": hash_pw(password),
-        "role": role,
-        "language": "en",
-        "active": True,
-        "token_version": 0,
-        "created_at": now,
-    })
+    await db.users.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "email": email,
+            "password_hash": hash_pw(password),
+            "role": role,
+            "language": "en",
+            "active": True,
+            "token_version": 0,
+            "created_at": now,
+        }
+    )
     logger.info("Seeded %s account: %s", role, email)
 
 
@@ -224,7 +238,9 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await ensure_user(OWNER_EMAIL, OWNER_PASSWORD, OWNER_NAME, "owner")
-    await ensure_user(SEED_CUSTOMER_EMAIL, SEED_CUSTOMER_PASSWORD, SEED_CUSTOMER_NAME, "customer")
+    await ensure_user(
+        SEED_CUSTOMER_EMAIL, SEED_CUSTOMER_PASSWORD, SEED_CUSTOMER_NAME, "customer"
+    )
     if not await db.settings.find_one({"_id": "app"}):
         s = dict(DEFAULT_SETTINGS)
         s["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -250,7 +266,9 @@ def _init_storage() -> Optional[str]:
         return _storage_key
     if not EMERGENT_LLM_KEY:
         return None
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY}, timeout=30)
+    resp = requests.post(
+        f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY}, timeout=30
+    )
     resp.raise_for_status()
     _storage_key = resp.json()["storage_key"]
     return _storage_key
@@ -261,6 +279,7 @@ def _vercel_blob_credentials():
 
     try:
         from vercel.functions import get_env
+
         env = get_env()
         oidc_token = (
             os.getenv("VERCEL_OIDC_TOKEN")
@@ -272,7 +291,7 @@ def _vercel_blob_credentials():
 
     # Vercel Blob API expects store ID without "store_" prefix.
     if store_id.startswith("store_"):
-        store_id = store_id[len("store_"):]
+        store_id = store_id[len("store_") :]
 
     return store_id, oidc_token
 
@@ -309,6 +328,8 @@ def _put_object(path: str, data: bytes, content_type: str):
 
 def _storage_ready() -> bool:
     return bool(os.getenv("BLOB_STORE_ID"))
+
+
 # ---------------------------------------------------------------- (no external AI)
 # This app uses ZERO AI inference credit. Speech-to-text and text-to-speech run
 # on the user's device (free); answers come only from the local knowledge engine.
@@ -352,7 +373,9 @@ async def login(body: LoginBody):
     if not user or not ok:
         raise HTTPException(401, "Invalid email or password")
     if not user.get("active", True):
-        raise HTTPException(403, "Your account has been deactivated. Contact the keeper.")
+        raise HTTPException(
+            403, "Your account has been deactivated. Contact the keeper."
+        )
     return {"token": make_token(user), "user": public_user(user)}
 
 
@@ -363,11 +386,21 @@ async def forgot_password(body: ForgotBody):
     if user and user["role"] == "customer":
         await db.reset_requests.update_one(
             {"email": email},
-            {"$set": {"email": email, "name": user.get("name", ""), "user_id": user["id"],
-                      "status": "pending", "created_at": datetime.now(timezone.utc).isoformat()}},
+            {
+                "$set": {
+                    "email": email,
+                    "name": user.get("name", ""),
+                    "user_id": user["id"],
+                    "status": "pending",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
             upsert=True,
         )
-    return {"ok": True, "message": "If an account exists, the keeper has been notified to restore your access."}
+    return {
+        "ok": True,
+        "message": "If an account exists, the keeper has been notified to restore your access.",
+    }
 
 
 @api.get("/auth/me")
@@ -391,6 +424,7 @@ async def update_me(body: ProfileBody, user: dict = Depends(get_current_user)):
         user = await db.users.find_one({"id": user["id"]})
     return public_user(user)
 
+
 def _relevant_knowledge_text(question: str, text: str, topics=None):
     import re
 
@@ -401,129 +435,162 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
         return 0, ""
 
     def words(value):
-        return set(
-            re.findall(
-                r"[a-zA-Z0-9\u0900-\u097F]+",
-                value.lower()
-            )
-        )
+        return set(re.findall(r"[a-zA-Z0-9\u0900-\u097F]+", value.lower()))
 
     stop = {
-        "mera", "meri", "mere", "mujhe", "main",
-        "mein", "ka", "ki", "ke", "ko", "hai",
-        "hoga", "hogi", "honge", "kya", "kaisa",
-        "kaisi", "kaise", "batao", "please",
-
-        "the", "a", "an", "is", "are", "was",
-        "were", "to", "of", "and", "or", "in",
-        "on", "for", "with", "my", "me", "i",
-        "what", "how", "can", "will", "would",
-        "please", "tell"
+        "mera",
+        "meri",
+        "mere",
+        "mujhe",
+        "main",
+        "mein",
+        "ka",
+        "ki",
+        "ke",
+        "ko",
+        "hai",
+        "hoga",
+        "hogi",
+        "honge",
+        "kya",
+        "kaisa",
+        "kaisi",
+        "kaise",
+        "batao",
+        "please",
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "to",
+        "of",
+        "and",
+        "or",
+        "in",
+        "on",
+        "for",
+        "with",
+        "my",
+        "me",
+        "i",
+        "what",
+        "how",
+        "can",
+        "will",
+        "would",
+        "please",
+        "tell",
     }
 
     families = {
         "relationship": {
-            "shaadi", "marriage", "wedding",
-            "spouse", "husband", "wife",
-            "partner", "relationship", "love",
-            "romance", "matrimony"
+            "shaadi",
+            "marriage",
+            "wedding",
+            "spouse",
+            "husband",
+            "wife",
+            "partner",
+            "relationship",
+            "love",
+            "romance",
+            "matrimony",
         },
-
         "timing": {
-            "kab", "when", "timing", "time",
-            "date", "month", "year", "period",
-            "age", "dasha", "transit"
+            "kab",
+            "when",
+            "timing",
+            "time",
+            "date",
+            "month",
+            "year",
+            "period",
+            "age",
+            "dasha",
+            "transit",
         },
-
-        "daily": {
-            "aaj", "today", "daily",
-            "day", "din", "tomorrow", "kal"
-        },
-
+        "daily": {"aaj", "today", "daily", "day", "din", "tomorrow", "kal"},
         "career": {
-            "career", "job", "naukri", "work",
-            "business", "profession", "promotion",
-            "interview", "office"
+            "career",
+            "job",
+            "naukri",
+            "work",
+            "business",
+            "profession",
+            "promotion",
+            "interview",
+            "office",
         },
-
         "money": {
-            "money", "paisa", "paise",
-            "finance", "financial", "wealth",
-            "income", "salary", "business",
-            "profit"
+            "money",
+            "paisa",
+            "paise",
+            "finance",
+            "financial",
+            "wealth",
+            "income",
+            "salary",
+            "business",
+            "profit",
         },
-
         "health": {
-            "health", "sehat", "body",
-            "wellness", "healing", "energy",
-            "sleep", "stress"
+            "health",
+            "sehat",
+            "body",
+            "wellness",
+            "healing",
+            "energy",
+            "sleep",
+            "stress",
         },
-
-        "purpose": {
-            "purpose", "mission", "calling",
-            "direction", "life", "path"
-        },
-
-        "tarot": {
-            "tarot", "card", "cards",
-            "arcana", "spread"
-        },
-
+        "purpose": {"purpose", "mission", "calling", "direction", "life", "path"},
+        "tarot": {"tarot", "card", "cards", "arcana", "spread"},
         "astrology": {
-            "astrology", "kundali", "horoscope",
-            "zodiac", "planet", "graha",
-            "lagna", "nakshatra", "dasha",
-            "transit", "birthchart", "chart"
+            "astrology",
+            "kundali",
+            "horoscope",
+            "zodiac",
+            "planet",
+            "graha",
+            "lagna",
+            "nakshatra",
+            "dasha",
+            "transit",
+            "birthchart",
+            "chart",
         },
-
         "numerology": {
-            "numerology", "number", "numbers",
-            "mulank", "bhagyank", "lifepath",
-            "destiny", "name-number"
+            "numerology",
+            "number",
+            "numbers",
+            "mulank",
+            "bhagyank",
+            "lifepath",
+            "destiny",
+            "name-number",
         },
-
-        "aura": {
-            "aura", "energy", "vibration",
-            "vibrations", "field"
-        },
-
-        "crystals": {
-            "crystal", "crystals", "gemstone",
-            "stone", "stones"
-        },
-
-        "runes": {
-            "rune", "runes"
-        },
-
-        "palmistry": {
-            "palm", "palmistry", "hand",
-            "line", "lines"
-        },
-
-        "fengshui": {
-            "feng", "shui", "fengshui"
-        },
-
-        "kabbalah": {
-            "kabbalah", "kabbalistic"
-        },
-
-        "iching": {
-            "iching", "i-ching", "hexagram"
-        },
-
+        "aura": {"aura", "energy", "vibration", "vibrations", "field"},
+        "crystals": {"crystal", "crystals", "gemstone", "stone", "stones"},
+        "runes": {"rune", "runes"},
+        "palmistry": {"palm", "palmistry", "hand", "line", "lines"},
+        "fengshui": {"feng", "shui", "fengshui"},
+        "kabbalah": {"kabbalah", "kabbalistic"},
+        "iching": {"iching", "i-ching", "hexagram"},
         "mindfulness": {
-            "mindfulness", "meditation",
-            "calm", "breathing", "breath",
-            "journal", "journaling"
-        }
+            "mindfulness",
+            "meditation",
+            "calm",
+            "breathing",
+            "breath",
+            "journal",
+            "journaling",
+        },
     }
 
-    q_words = {
-        w for w in words(q)
-        if len(w) > 1 and w not in stop
-    }
+    q_words = {w for w in words(q) if len(w) > 1 and w not in stop}
 
     triggered = []
 
@@ -534,7 +601,7 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
     # Add detected Oracle topics as relevance signals.
     topic_words = set()
 
-    for topic in (topics or []):
+    for topic in topics or []:
         topic_words.update(words(str(topic)))
 
     search_words = set(q_words)
@@ -554,32 +621,22 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
         "reference document",
         "knowledge base",
         "document purpose",
-        "introduction"
+        "introduction",
     )
 
-    blocks = re.split(
-        r"\n\s*\n|(?<=[.!?])\s+",
-        raw
-    )
+    blocks = re.split(r"\n\s*\n|(?<=[.!?])\s+", raw)
 
     ranked = []
 
     for block in blocks:
-        clean = re.sub(
-            r"\s+",
-            " ",
-            block
-        ).strip()
+        clean = re.sub(r"\s+", " ", block).strip()
 
         if len(clean) < 25:
             continue
 
         low = clean.lower()
 
-        if any(
-            junk in low
-            for junk in junk_phrases
-        ):
+        if any(junk in low for junk in junk_phrases):
             continue
 
         block_words = words(low)
@@ -625,17 +682,12 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
         if len(clean) >= 120:
             score += 3
 
-        ranked.append(
-            (score, clean)
-        )
+        ranked.append((score, clean))
 
     if not ranked:
         return 0, ""
 
-    ranked.sort(
-        key=lambda item: item[0],
-        reverse=True
-    )
+    ranked.sort(key=lambda item: item[0], reverse=True)
 
     best_score, best_text = ranked[0]
 
@@ -649,6 +701,8 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
         return 0, ""
 
     return best_score, best_text[:1400]
+
+
 # ---------------------------------------------------------------- oracle
 @api.post("/oracle/consult")
 async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
@@ -659,58 +713,34 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
 
     topics = oracle.detect_topics(question)
 
-    normalized_topics = [
-        str(t).strip().lower()
-        for t in topics
-        if str(t).strip()
-    ]
+    normalized_topics = [str(t).strip().lower() for t in topics if str(t).strip()]
 
     matched_entries = []
 
-    cursor = db.knowledge_entries.find({
-        "deleted_at": None
-    })
+    cursor = db.knowledge_entries.find({"deleted_at": None})
 
     async for entry in cursor:
-        entry_topic = str(
-            entry.get("topic", "")
-        ).strip().lower()
+        entry_topic = str(entry.get("topic", "")).strip().lower()
 
-        entry_text = str(
-            entry.get("text", "")
-        ).strip()
+        entry_text = str(entry.get("text", "")).strip()
 
-        entry_lang = str(
-            entry.get("lang", "")
-        ).strip().lower()
+        entry_lang = str(entry.get("lang", "")).strip().lower()
 
         if not entry_text:
             continue
 
-        topic_matches = (
-            entry_topic in normalized_topics
-            or entry_topic == "general"
-        )
+        topic_matches = entry_topic in normalized_topics or entry_topic == "general"
 
-        language_matches = (
-            not entry_lang
-            or entry_lang == body.lang
-        )
+        language_matches = not entry_lang or entry_lang == body.lang
 
         if topic_matches and language_matches:
             matched_entries.append(entry)
 
-    topic_priority = {
-        topic: index
-        for index, topic in enumerate(normalized_topics)
-    }
+    topic_priority = {topic: index for index, topic in enumerate(normalized_topics)}
 
     matched_entries.sort(
         key=lambda entry: topic_priority.get(
-            str(
-                entry.get("topic", "")
-            ).strip().lower(),
-            999
+            str(entry.get("topic", "")).strip().lower(), 999
         )
     )
 
@@ -720,10 +750,7 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
     # Search every matching knowledge entry.
     # Only genuinely relevant context is allowed.
     for entry in matched_entries:
-        candidate = _relevant_knowledge_text(
-            question,
-            str(entry.get("text", ""))
-        )
+        candidate = _relevant_knowledge_text(question, str(entry.get("text", "")))
 
         if not candidate:
             continue
@@ -744,73 +771,45 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
             "copyright",
         )
 
-        if any(
-            phrase in low
-            for phrase in blocked_phrases
-        ):
+        if any(phrase in low for phrase in blocked_phrases):
             continue
     question = (body.question or "").strip()
 
     if not question:
-        raise HTTPException(
-            400,
-            "Please ask a question."
-        )
+        raise HTTPException(400, "Please ask a question.")
 
     topics = oracle.detect_topics(question)
 
-    normalized_topics = {
-        str(t).strip().lower()
-        for t in topics
-        if str(t).strip()
-    }
+    normalized_topics = {str(t).strip().lower() for t in topics if str(t).strip()}
 
     best_score = 0
     best_answer = ""
     best_entry = None
 
-    cursor = db.knowledge_entries.find({
-        "deleted_at": None
-    }).limit(3000)
+    cursor = db.knowledge_entries.find({"deleted_at": None}).limit(3000)
 
     async for entry in cursor:
-        entry_text = str(
-            entry.get("text", "")
-        ).strip()
+        entry_text = str(entry.get("text", "")).strip()
 
         if not entry_text:
             continue
 
-        score, candidate = _relevant_knowledge_text(
-            question,
-            entry_text,
-            topics
-        )
+        score, candidate = _relevant_knowledge_text(question, entry_text, topics)
 
         if not candidate:
             continue
 
-        entry_topic = str(
-            entry.get("topic", "")
-        ).strip().lower()
+        entry_topic = str(entry.get("topic", "")).strip().lower()
 
-        entry_lang = str(
-            entry.get("lang", "")
-        ).strip().lower()
+        entry_lang = str(entry.get("lang", "")).strip().lower()
 
         # Prefer the correct topic.
-        if (
-            entry_topic
-            and entry_topic in normalized_topics
-        ):
+        if entry_topic and entry_topic in normalized_topics:
             score += 10
 
         # Prefer same-language knowledge,
         # but still allow another language if relevant.
-        if (
-            entry_lang
-            and entry_lang == body.lang
-        ):
+        if entry_lang and entry_lang == body.lang:
             score += 4
 
         if score > best_score:
@@ -825,25 +824,16 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
             "primary": (
                 best_entry.get("topic")
                 if best_entry
-                else (
-                    topics[0]
-                    if topics
-                    else "General"
-                )
+                else (topics[0] if topics else "General")
             ),
         }
 
     else:
         # No genuinely relevant uploaded context.
         # Use the built-in Oracle instead of random file text.
-        result = oracle.compose_answer(
-            question,
-            body.lang
-        )
+        result = oracle.compose_answer(question, body.lang)
 
-    now = datetime.now(
-        timezone.utc
-    ).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     reading = {
         "id": str(uuid.uuid4()),
@@ -856,13 +846,12 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
         "created_at": now,
     }
 
-    await db.readings.insert_one(
-        dict(reading)
-    )
+    await db.readings.insert_one(dict(reading))
 
     reading.pop("_id", None)
 
     return reading
+
 
 @api.get("/oracle/daily")
 async def daily(lang: str = "en", user: dict = Depends(get_current_user)):
@@ -875,7 +864,11 @@ async def daily(lang: str = "en", user: dict = Depends(get_current_user)):
 
 @api.get("/readings")
 async def my_readings(user: dict = Depends(get_current_user)):
-    rows = await db.readings.find({"user_id": user["id"]}).sort("created_at", -1).to_list(100)
+    rows = (
+        await db.readings.find({"user_id": user["id"]})
+        .sort("created_at", -1)
+        .to_list(100)
+    )
     for r in rows:
         r.pop("_id", None)
     return rows
@@ -883,7 +876,9 @@ async def my_readings(user: dict = Depends(get_current_user)):
 
 # ---------------------------------------------------------------- numerology engine
 @api.post("/numerology/reading")
-async def numerology_reading(body: NumerologyBody, user: dict = Depends(get_current_user)):
+async def numerology_reading(
+    body: NumerologyBody, user: dict = Depends(get_current_user)
+):
     try:
         return numerology.reading(body.full_name, body.dob)
     except ValueError as e:
@@ -893,7 +888,11 @@ async def numerology_reading(body: NumerologyBody, user: dict = Depends(get_curr
 # ---------------------------------------------------------------- tarot engine
 @api.get("/tarot/deck")
 async def tarot_deck(user: dict = Depends(get_current_user)):
-    return {"count": len(tarot.DECK), "spreads": list(tarot.SPREADS.keys()), "cards": tarot.DECK}
+    return {
+        "count": len(tarot.DECK),
+        "spreads": list(tarot.SPREADS.keys()),
+        "cards": tarot.DECK,
+    }
 
 
 @api.post("/tarot/draw")
@@ -940,10 +939,7 @@ async def upload_branding(
     }
 
     if ct not in allowed:
-        raise HTTPException(
-            400,
-            "Only PNG, JPG, JPEG or WEBP images are allowed."
-        )
+        raise HTTPException(400, "Only PNG, JPG, JPEG or WEBP images are allowed.")
 
     data = await file.read()
 
@@ -951,35 +947,27 @@ async def upload_branding(
         raise HTTPException(400, "Empty image.")
 
     if len(data) > 8 * 1024 * 1024:
-        raise HTTPException(
-            400,
-            "Image must be under 8 MB."
-        )
+        raise HTTPException(400, "Image must be under 8 MB.")
 
     ext = allowed[ct]
 
-    path = (
-        f"{APP_SLUG}/branding/"
-        f"{kind}-{uuid.uuid4().hex}.{ext}"
-    )
+    path = f"{APP_SLUG}/branding/" f"{kind}-{uuid.uuid4().hex}.{ext}"
 
     # Store the image directly inside MongoDB.
     # No Blob key, OIDC or Emergent key required.
-    await db.media_files.insert_one({
-        "id": str(uuid.uuid4()),
-        "path": path,
-        "kind": kind,
-        "content_type": ct,
-        "data": data,
-        "size": len(data),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-
-    field = (
-        "logo_url"
-        if kind == "logo"
-        else "background_url"
+    await db.media_files.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "path": path,
+            "kind": kind,
+            "content_type": ct,
+            "data": data,
+            "size": len(data),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
     )
+
+    field = "logo_url" if kind == "logo" else "background_url"
 
     url = f"/api/media?path={path}"
 
@@ -988,9 +976,7 @@ async def upload_branding(
         {
             "$set": {
                 field: url,
-                "updated_at": datetime.now(
-                    timezone.utc
-                ).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         },
         upsert=True,
@@ -1005,14 +991,10 @@ async def upload_branding(
 
 @api.get("/media")
 async def get_media(path: str):
-    if not path.startswith(
-        f"{APP_SLUG}/branding/"
-    ):
+    if not path.startswith(f"{APP_SLUG}/branding/"):
         raise HTTPException(400, "Bad path.")
 
-    media = await db.media_files.find_one(
-        {"path": path}
-    )
+    media = await db.media_files.find_one({"path": path})
 
     if not media:
         raise HTTPException(404, "Not found.")
@@ -1022,18 +1004,15 @@ async def get_media(path: str):
     if not data:
         raise HTTPException(404, "Not found.")
 
-    content_type = media.get(
-        "content_type",
-        "application/octet-stream"
-    )
+    content_type = media.get("content_type", "application/octet-stream")
 
     return Response(
         content=data,
         media_type=content_type,
-        headers={
-            "Cache-Control": "public, max-age=3600"
-        },
+        headers={"Cache-Control": "public, max-age=3600"},
     )
+
+
 # ---------------------------------------------------------------- owner console
 @api.get("/owner/overview")
 async def owner_overview(owner: dict = Depends(require_owner)):
@@ -1069,21 +1048,33 @@ async def owner_overview(owner: dict = Depends(require_owner)):
     members = []
     for u in users:
         rc = sum(1 for r in readings if r["user_id"] == u["id"])
-        members.append({
-            "id": u["id"], "name": u.get("name", ""), "email": u["email"],
-            "role": u["role"], "active": u.get("active", True),
-            "is_owner": u["role"] == "owner", "created_at": u.get("created_at"),
-            "readings": rc,
-        })
+        members.append(
+            {
+                "id": u["id"],
+                "name": u.get("name", ""),
+                "email": u["email"],
+                "role": u["role"],
+                "active": u.get("active", True),
+                "is_owner": u["role"] == "owner",
+                "created_at": u.get("created_at"),
+                "readings": rc,
+            }
+        )
 
-    reset_requests = await db.reset_requests.find({"status": "pending"}).sort("created_at", -1).to_list(100)
+    reset_requests = (
+        await db.reset_requests.find({"status": "pending"})
+        .sort("created_at", -1)
+        .to_list(100)
+    )
     for rr in reset_requests:
         rr.pop("_id", None)
 
     return {
         "total_sessions": len(readings),
         "registered_users": len(users),
-        "today": sum(1 for r in readings if day_key(r.get("created_at", "")) == today_key),
+        "today": sum(
+            1 for r in readings if day_key(r.get("created_at", "")) == today_key
+        ),
         "topics_covered": len(topic_counts),
         "most_asked": most_asked,
         "last7": last7,
@@ -1100,19 +1091,28 @@ async def set_active(cid: str, body: ActiveBody, owner: dict = Depends(require_o
         raise HTTPException(404, "Customer not found")
     if target["role"] == "owner":
         raise HTTPException(400, "Cannot modify the owner account.")
-    await db.users.update_one({"id": cid}, {"$set": {"active": body.active}, "$inc": {"token_version": 1}})
+    await db.users.update_one(
+        {"id": cid}, {"$set": {"active": body.active}, "$inc": {"token_version": 1}}
+    )
     return {"ok": True, "active": body.active}
 
 
 @api.post("/owner/customers/{cid}/reset")
-async def reset_customer(cid: str, body: ResetBody, owner: dict = Depends(require_owner)):
+async def reset_customer(
+    cid: str, body: ResetBody, owner: dict = Depends(require_owner)
+):
     target = await db.users.find_one({"id": cid})
     if not target:
         raise HTTPException(404, "Customer not found")
     if target["role"] == "owner":
         raise HTTPException(400, "Cannot reset the owner account here.")
-    await db.users.update_one({"id": cid},
-                              {"$set": {"password_hash": hash_pw(body.new_password)}, "$inc": {"token_version": 1}})
+    await db.users.update_one(
+        {"id": cid},
+        {
+            "$set": {"password_hash": hash_pw(body.new_password)},
+            "$inc": {"token_version": 1},
+        },
+    )
     await db.reset_requests.update_one({"user_id": cid}, {"$set": {"status": "done"}})
     return {"ok": True}
 
@@ -1120,18 +1120,30 @@ async def reset_customer(cid: str, body: ResetBody, owner: dict = Depends(requir
 @api.get("/owner/knowledge")
 async def list_knowledge(owner: dict = Depends(require_owner)):
     topics = [tk for tk in oracle.PACK.keys() if tk != "general"]
-    base_counts = {tk: sum(len(oracle.PACK[tk].get(l, [])) for l in ("en", "hi", "hng")) for tk in topics}
-    entries = await db.knowledge_entries.find({"deleted_at": None}).sort("created_at", -1).to_list(500)
-    for e in entries:
-        e.pop("_id", None)
-    files = await db.kb_files.find({"deleted_at": None}).sort("created_at", -1).to_list(200)
-    for f in files:
-        f.pop("_id", None)
+    base_counts = {
+        tk: sum(len(oracle.PACK[tk].get(l, [])) for l in ("en", "hi", "hng"))
+        for tk in topics
+    }
+    entries = (
+        await db.knowledge_entries.find({"deleted_at": None}, {"_id": 0})
+        .sort("created_at", -1)
+        .to_list(500)
+    )
+    files = (
+        await db.kb_files.find({"deleted_at": None}, {"_id": 0})
+        .sort("created_at", -1)
+        .to_list(200)
+    )
     custom_counts: dict[str, int] = {}
     for e in entries:
         custom_counts[e["topic"]] = custom_counts.get(e["topic"], 0) + 1
-    return {"topics": topics, "base_counts": base_counts, "custom_counts": custom_counts,
-            "entries": entries, "files": files}
+    return {
+        "topics": topics,
+        "base_counts": base_counts,
+        "custom_counts": custom_counts,
+        "entries": entries,
+        "files": files,
+    }
 
 
 @api.post("/owner/knowledge")
@@ -1153,7 +1165,9 @@ async def add_knowledge(body: KnowledgeBody, owner: dict = Depends(require_owner
 
 @api.delete("/owner/knowledge/{eid}")
 async def delete_knowledge(eid: str, owner: dict = Depends(require_owner)):
-    await db.knowledge_entries.update_one({"id": eid}, {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}})
+    await db.knowledge_entries.update_one(
+        {"id": eid}, {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}}
+    )
     return {"ok": True}
 
 
@@ -1180,10 +1194,7 @@ async def upload_knowledge(
     allowed = {"json", "txt", "md", "csv", "pdf", "docx"}
 
     if ext not in allowed:
-        raise HTTPException(
-            400,
-            "Supported files: JSON, TXT, MD, CSV, PDF and DOCX."
-        )
+        raise HTTPException(400, "Supported files: JSON, TXT, MD, CSV, PDF and DOCX.")
 
     now = datetime.now(timezone.utc).isoformat()
     bulk = []
@@ -1209,10 +1220,7 @@ async def upload_knowledge(
 
             if isinstance(parsed, dict):
                 for topic, langs in parsed.items():
-                    if (
-                        topic in oracle.PACK
-                        and isinstance(langs, dict)
-                    ):
+                    if topic in oracle.PACK and isinstance(langs, dict):
                         structured = True
 
                         for lg, arr in langs.items():
@@ -1234,27 +1242,22 @@ async def upload_knowledge(
                                 if not txt:
                                     continue
 
-                                bulk.append({
-                                    "id": str(uuid.uuid4()),
-                                    "topic": topic,
-                                    "lang": lg,
-                                    "text": txt,
-                                    "deleted_at": None,
-                                    "created_at": now,
-                                })
+                                bulk.append(
+                                    {
+                                        "id": str(uuid.uuid4()),
+                                        "topic": topic,
+                                        "lang": lg,
+                                        "text": txt,
+                                        "deleted_at": None,
+                                        "created_at": now,
+                                    }
+                                )
 
             if not structured:
-                extracted_text = _json.dumps(
-                    parsed,
-                    ensure_ascii=False,
-                    indent=2
-                )
+                extracted_text = _json.dumps(parsed, ensure_ascii=False, indent=2)
 
         except Exception as e:
-            raise HTTPException(
-                400,
-                f"Invalid JSON file: {str(e)}"
-            )
+            raise HTTPException(400, f"Invalid JSON file: {str(e)}")
 
     # -----------------------------------------
     # TXT / MARKDOWN / CSV
@@ -1263,10 +1266,7 @@ async def upload_knowledge(
         try:
             extracted_text = data.decode("utf-8")
         except UnicodeDecodeError:
-            extracted_text = data.decode(
-                "latin-1",
-                errors="ignore"
-            )
+            extracted_text = data.decode("latin-1", errors="ignore")
 
     # -----------------------------------------
     # PDF
@@ -1287,10 +1287,7 @@ async def upload_knowledge(
             extracted_text = "\n\n".join(pages)
 
         except Exception as e:
-            raise HTTPException(
-                400,
-                f"Could not read PDF: {str(e)}"
-            )
+            raise HTTPException(400, f"Could not read PDF: {str(e)}")
 
     # -----------------------------------------
     # DOCX
@@ -1308,10 +1305,7 @@ async def upload_knowledge(
             )
 
         except Exception as e:
-            raise HTTPException(
-                400,
-                f"Could not read DOCX: {str(e)}"
-            )
+            raise HTTPException(400, f"Could not read DOCX: {str(e)}")
 
     # -----------------------------------------
     # AUTO-INGEST NORMAL DOCUMENTS
@@ -1319,17 +1313,15 @@ async def upload_knowledge(
     if extracted_text.strip():
 
         cleaned = "\n".join(
-            line.strip()
-            for line in extracted_text.splitlines()
-            if line.strip()
+            line.strip() for line in extracted_text.splitlines() if line.strip()
         )
 
         # Break large files into manageable knowledge chunks.
         chunk_size = 3500
         chunks = [
-            cleaned[i:i + chunk_size]
+            cleaned[i : i + chunk_size]
             for i in range(0, len(cleaned), chunk_size)
-            if cleaned[i:i + chunk_size].strip()
+            if cleaned[i : i + chunk_size].strip()
         ]
 
         # Filename can also help identify the tradition.
@@ -1344,9 +1336,7 @@ async def upload_knowledge(
             detected_topics = oracle.detect_topics(chunk)
 
             detected_topics = [
-                topic
-                for topic in detected_topics
-                if topic in oracle.PACK
+                topic for topic in detected_topics if topic in oracle.PACK
             ]
 
             if not detected_topics:
@@ -1357,9 +1347,7 @@ async def upload_knowledge(
                 detected_topics = ["General"]
 
             # Remove duplicate topics.
-            detected_topics = list(
-                dict.fromkeys(detected_topics)
-            )
+            detected_topics = list(dict.fromkeys(detected_topics))
 
             for topic in detected_topics:
 
@@ -1367,38 +1355,33 @@ async def upload_knowledge(
                 # regardless of selected UI language.
                 for lg in ("en", "hi", "hng"):
 
-                    bulk.append({
-                        "id": str(uuid.uuid4()),
-                        "topic": topic,
-                        "lang": lg,
-                        "text": chunk,
-                        "deleted_at": None,
-                        "created_at": now,
-                    })
+                    bulk.append(
+                        {
+                            "id": str(uuid.uuid4()),
+                            "topic": topic,
+                            "lang": lg,
+                            "text": chunk,
+                            "deleted_at": None,
+                            "created_at": now,
+                        }
+                    )
 
     if bulk:
-        await db.knowledge_entries.insert_many(
-            [dict(item) for item in bulk]
-        )
+        await db.knowledge_entries.insert_many([dict(item) for item in bulk])
 
         ingested = len(bulk)
 
     if ingested == 0:
-        raise HTTPException(
-            400,
-            "The file contained no readable knowledge."
-        )
+        raise HTTPException(400, "The file contained no readable knowledge.")
 
     file_id = str(uuid.uuid4())
 
     rec = {
         "id": file_id,
         "name": name,
-
         # Original file bytes are not stored.
         # Its usable knowledge is stored directly in MongoDB.
         "path": f"mongodb://knowledge/{file_id}",
-
         "content_type": ct,
         "size": len(data),
         "ingested": ingested,

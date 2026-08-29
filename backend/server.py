@@ -720,7 +720,7 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
     # Search every matching knowledge entry.
     # Only genuinely relevant context is allowed.
     for entry in matched_entries:
-        candidate = _relevant_knowledge_text(
+        score, candidate = _relevant_knowledge_text(
             question,
             str(entry.get("text", ""))
         )

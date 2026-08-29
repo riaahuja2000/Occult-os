@@ -11,6 +11,7 @@ from typing import Optional, Literal
 import jwt
 import bcrypt
 import requests
+import httpx
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form
 from fastapi.responses import Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -277,7 +278,16 @@ def _vercel_blob_credentials():
     return store_id, oidc_token
 
 
-def _put_object(path: str, data: bytes, content_type: str):
+_http_client = None
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient()
+    return _http_client
+
+
+async def _put_object(path: str, data: bytes, content_type: str):
     store_id, oidc_token = _vercel_blob_credentials()
 
     if not store_id:
@@ -286,7 +296,8 @@ def _put_object(path: str, data: bytes, content_type: str):
     if not oidc_token:
         raise RuntimeError("Vercel OIDC token is unavailable")
 
-    resp = requests.put(
+    client = _get_http_client()
+    resp = await client.put(
         "https://vercel.com/api/blob/",
         params={"pathname": path},
         headers={
@@ -299,7 +310,7 @@ def _put_object(path: str, data: bytes, content_type: str):
             "x-content-type": content_type or "application/octet-stream",
             "x-add-random-suffix": "0",
         },
-        data=data,
+        content=data,
         timeout=60,
     )
 

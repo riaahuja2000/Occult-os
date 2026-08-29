@@ -56,7 +56,7 @@ LIFE_KEYWORDS = {
                       "dating", "pyaar", "ishq", "shaadi", "rishta", "प्यार", "शादी", "रिश्ता"],
     "career": ["career", "job", "work", "promotion", "boss", "office", "profession",
                "business", "kaam", "naukri", "नौकरी", "काम", "बिज़नेस"],
-    "money": ["money", "finance", "wealth", "rich", "debt", "loan", "invest", "income",
+    "money": ["money", "finance", "financial", "wealth", "rich", "debt", "loan", "invest", "income",
               "paisa", "dhan", "पैसा", "धन", "लोन"],
     "health": ["health", "sick", "illness", "disease", "wellness", "healing", "body",
                "sehat", "bimari", "सेहत", "बीमारी"],

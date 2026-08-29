@@ -884,6 +884,8 @@ async def my_readings(user: dict = Depends(get_current_user)):
 # ---------------------------------------------------------------- numerology engine
 @api.post("/numerology/reading")
 async def numerology_reading(body: NumerologyBody, user: dict = Depends(get_current_user)):
+    if not body.full_name or not body.full_name.strip():
+        raise HTTPException(status_code=400, detail="Please provide the full birth name")
     try:
         return numerology.reading(body.full_name, body.dob)
     except ValueError as e:

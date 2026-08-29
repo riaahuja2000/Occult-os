@@ -53,10 +53,13 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@types/jest": "30.0.0",
     "@types/react": "19.1.10",
     "eslint": "9.25.0",
     "eslint-config-expo": "10.0.0",
     "expo-doctor": "1.19.8",
+    "jest": "30.5.0",
+    "jest-expo": "57.0.5",
     "typescript": "5.9.3"
   },
   "resolutions": {

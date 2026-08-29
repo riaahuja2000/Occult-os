@@ -11,6 +11,7 @@ from typing import Optional, Literal
 import jwt
 import bcrypt
 import requests
+import httpx
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form
 from fastapi.responses import Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -230,7 +231,7 @@ async def startup():
         s["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.settings.insert_one(s)
     try:
-        await run_in_threadpool(_init_storage)
+        await _init_storage()
     except Exception as e:
         logger.warning("Object storage init failed (uploads may be unavailable): %s", e)
 
@@ -244,15 +245,16 @@ async def shutdown():
 _storage_key: Optional[str] = None
 
 
-def _init_storage() -> Optional[str]:
+async def _init_storage() -> Optional[str]:
     global _storage_key
     if _storage_key:
         return _storage_key
     if not EMERGENT_LLM_KEY:
         return None
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY}, timeout=30)
-    resp.raise_for_status()
-    _storage_key = resp.json()["storage_key"]
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY}, timeout=30)
+        resp.raise_for_status()
+        _storage_key = resp.json()["storage_key"]
     return _storage_key
 
 

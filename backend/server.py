@@ -35,7 +35,7 @@ mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "velora-dev-secret-change-me")
+JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALG = "HS256"
 TOKEN_DAYS = 30
 

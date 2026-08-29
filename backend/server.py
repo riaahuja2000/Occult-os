@@ -51,6 +51,17 @@ STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
 APP_SLUG = "velora-occult-voice"
 
+ALLOWED_ORIGINS_STR = os.environ.get("ALLOWED_ORIGINS", "")
+if ALLOWED_ORIGINS_STR:
+    ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_STR.split(",") if origin.strip()]
+else:
+    ALLOWED_ORIGINS = [
+        "http://localhost",
+        "http://localhost:3000",
+        "http://localhost:8081",
+        "http://localhost:8082",
+    ]
+
 DEFAULT_SETTINGS = {
     "_id": "app",
     "app_name": "VELORA",
@@ -1417,7 +1428,7 @@ app.include_router(api)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

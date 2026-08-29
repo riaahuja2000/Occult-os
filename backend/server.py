@@ -347,7 +347,7 @@ async def register(body: RegisterBody):
 async def login(body: LoginBody):
     email = str(body.email).lower()
     user = await db.users.find_one({"email": email})
-    dummy = "$2b$12$" + "x" * 53
+    dummy = "$2b$12$7z1Jw0F/nASxYSulGUAAaua4PGg0EQNFcaUitwi1FeejOgRn/4.i6"
     ok = verify_pw(body.password, user["password_hash"] if user else dummy)
     if not user or not ok:
         raise HTTPException(401, "Invalid email or password")

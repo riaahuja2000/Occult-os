@@ -3,6 +3,7 @@ import re
 import uuid
 import hashlib
 import logging
+import secrets
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -40,10 +41,10 @@ JWT_ALG = "HS256"
 TOKEN_DAYS = 30
 
 OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "riaahuja2000@gmail.com").strip().lower()
-OWNER_PASSWORD = os.environ.get("OWNER_PASSWORD", "rioelixir")
+OWNER_PASSWORD = os.environ.get("OWNER_PASSWORD") or secrets.token_urlsafe(16)
 OWNER_NAME = os.environ.get("OWNER_NAME", "Ria Ahuja")
 SEED_CUSTOMER_EMAIL = os.environ.get("SEED_CUSTOMER_EMAIL", "taromaya@gmail.com").strip().lower()
-SEED_CUSTOMER_PASSWORD = os.environ.get("SEED_CUSTOMER_PASSWORD", "123456789")
+SEED_CUSTOMER_PASSWORD = os.environ.get("SEED_CUSTOMER_PASSWORD") or secrets.token_urlsafe(16)
 SEED_CUSTOMER_NAME = os.environ.get("SEED_CUSTOMER_NAME", "Maya")
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")

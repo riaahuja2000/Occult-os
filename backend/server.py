@@ -571,10 +571,24 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
             block
         ).strip()
 
-        if len(clean) < 25:
+        if not clean:
+            continue
+
+        word_list = clean.split()
+
+        # Exclude purely uppercase/title lines (headings)
+        if len(word_list) > 0 and sum(1 for w in word_list if w.isupper() or w.istitle()) / len(word_list) > 0.7:
+             continue
+
+        # Exclude short fragments without sentence structure
+        if len(word_list) < 6 and not any(char in clean for char in ".!?"):
             continue
 
         low = clean.lower()
+
+        # Exclude technical specification text generically
+        if "deterministic function" in low or "algorithm" in low or "specification" in low:
+            continue
 
         if any(
             junk in low
@@ -640,10 +654,10 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
     best_score, best_text = ranked[0]
 
     # Prevent weak/random matches.
-    minimum_score = 12
+    minimum_score = 25
 
     if triggered:
-        minimum_score = 18
+        minimum_score = 35
 
     if best_score < minimum_score:
         return 0, ""
@@ -652,103 +666,6 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
 # ---------------------------------------------------------------- oracle
 @api.post("/oracle/consult")
 async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
-    question = (body.question or "").strip()
-
-    if not question:
-        raise HTTPException(400, "Please ask a question.")
-
-    topics = oracle.detect_topics(question)
-
-    normalized_topics = [
-        str(t).strip().lower()
-        for t in topics
-        if str(t).strip()
-    ]
-
-    matched_entries = []
-
-    cursor = db.knowledge_entries.find({
-        "deleted_at": None
-    })
-
-    async for entry in cursor:
-        entry_topic = str(
-            entry.get("topic", "")
-        ).strip().lower()
-
-        entry_text = str(
-            entry.get("text", "")
-        ).strip()
-
-        entry_lang = str(
-            entry.get("lang", "")
-        ).strip().lower()
-
-        if not entry_text:
-            continue
-
-        topic_matches = (
-            entry_topic in normalized_topics
-            or entry_topic == "general"
-        )
-
-        language_matches = (
-            not entry_lang
-            or entry_lang == body.lang
-        )
-
-        if topic_matches and language_matches:
-            matched_entries.append(entry)
-
-    topic_priority = {
-        topic: index
-        for index, topic in enumerate(normalized_topics)
-    }
-
-    matched_entries.sort(
-        key=lambda entry: topic_priority.get(
-            str(
-                entry.get("topic", "")
-            ).strip().lower(),
-            999
-        )
-    )
-
-    chosen = None
-    chosen_answer = ""
-
-    # Search every matching knowledge entry.
-    # Only genuinely relevant context is allowed.
-    for entry in matched_entries:
-        candidate = _relevant_knowledge_text(
-            question,
-            str(entry.get("text", ""))
-        )
-
-        if not candidate:
-            continue
-
-        candidate_clean = candidate.strip()
-
-        if not candidate_clean:
-            continue
-
-        # Never use obvious document titles / metadata as answers.
-        low = candidate_clean.lower()
-
-        blocked_phrases = (
-            "world occult knowledge base",
-            "velora intelligence library",
-            "master reference",
-            "table of contents",
-            "copyright",
-        )
-
-        if any(
-            phrase in low
-            for phrase in blocked_phrases
-        ):
-            continue
     question = (body.question or "").strip()
 
     if not question:
@@ -773,73 +690,79 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
         "deleted_at": None
     }).limit(3000)
 
-    async for entry in cursor:
-        entry_text = str(
-            entry.get("text", "")
-        ).strip()
+    try:
+        async for entry in cursor:
+            entry_text = str(
+                entry.get("text", "")
+            ).strip()
 
-        if not entry_text:
-            continue
+            if not entry_text:
+                continue
 
-        score, candidate = _relevant_knowledge_text(
-            question,
-            entry_text,
-            topics
-        )
+            score, candidate = _relevant_knowledge_text(
+                question,
+                entry_text,
+                topics
+            )
 
-        if not candidate:
-            continue
+            if not candidate:
+                continue
 
-        entry_topic = str(
-            entry.get("topic", "")
-        ).strip().lower()
+            entry_topic = str(
+                entry.get("topic", "")
+            ).strip().lower()
 
-        entry_lang = str(
-            entry.get("lang", "")
-        ).strip().lower()
+            entry_lang = str(
+                entry.get("lang", "")
+            ).strip().lower()
 
-        # Prefer the correct topic.
-        if (
-            entry_topic
-            and entry_topic in normalized_topics
-        ):
-            score += 10
+            # Prefer the correct topic.
+            if (
+                entry_topic
+                and entry_topic in normalized_topics
+            ):
+                score += 10
 
-        # Prefer same-language knowledge,
-        # but still allow another language if relevant.
-        if (
-            entry_lang
-            and entry_lang == body.lang
-        ):
-            score += 4
+            # Prefer same-language knowledge,
+            # but still allow another language if relevant.
+            if (
+                entry_lang
+                and entry_lang == body.lang
+            ):
+                score += 4
 
-        if score > best_score:
-            best_score = score
-            best_answer = candidate
-            best_entry = entry
+            if score > best_score:
+                best_score = score
+                best_answer = candidate
+                best_entry = entry
+    except Exception as e:
+        import logging
+        logging.error(f"Error retrieving knowledge entries: {e}")
 
     if best_answer:
-        result = {
-            "answer": best_answer,
-            "topics": topics,
-            "primary": (
-                best_entry.get("topic")
-                if best_entry
-                else (
-                    topics[0]
-                    if topics
-                    else "General"
-                )
-            ),
-        }
-
+        topic_name = best_entry.get("topic", "") if best_entry else topics[0] if topics else "General"
+        result = oracle.compose_answer(
+            question,
+            body.lang,
+            extra_by_topic={topic_name: [best_answer]}
+        )
     else:
         # No genuinely relevant uploaded context.
         # Use the built-in Oracle instead of random file text.
-        result = oracle.compose_answer(
-            question,
-            body.lang
-        )
+
+        if "daily" in topics:
+            seed_str = f"{user['id']}:{datetime.now(timezone.utc).date()}:{body.lang}"
+            daily_ans = oracle.daily_reading(seed_str, body.lang)
+            result = {
+                "answer": daily_ans,
+                "topics": topics,
+                "primary": "daily"
+            }
+        else:
+            result = oracle.compose_answer(
+                question,
+                body.lang
+            )
 
     now = datetime.now(
         timezone.utc

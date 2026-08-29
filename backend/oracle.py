@@ -56,7 +56,7 @@ LIFE_KEYWORDS = {
                       "dating", "pyaar", "ishq", "shaadi", "rishta", "प्यार", "शादी", "रिश्ता"],
     "career": ["career", "job", "work", "promotion", "boss", "office", "profession",
                "business", "kaam", "naukri", "नौकरी", "काम", "बिज़नेस"],
-    "money": ["money", "finance", "wealth", "rich", "debt", "loan", "invest", "income",
+    "money": ["money", "finance", "financial", "wealth", "rich", "debt", "loan", "invest", "income",
               "paisa", "dhan", "पैसा", "धन", "लोन"],
     "health": ["health", "sick", "illness", "disease", "wellness", "healing", "body",
                "sehat", "bimari", "सेहत", "बीमारी"],
@@ -67,6 +67,7 @@ LIFE_KEYWORDS = {
                     "present", "presence", "stillness", "grounded", "let go", "overthink",
                     "shanti", "dhyan", "shaanti", "मन", "ध्यान", "शांति", "तनाव", "चिंता"],
     "timing": ["when", "timing", "soon", "wait", "how long", "kab", "कब", "समय"],
+    "daily": ["aaj", "today", "daily", "day", "din", "tomorrow", "kal", "आज", "दिन", "रोज़"],
 }
 
 # Occult / aura / mindfulness default pool — used instead of any generic answer.
@@ -226,7 +227,7 @@ def _pick_opening(lang: str) -> str:
     return random.choice(OPENINGS.get(lang, OPENINGS["en"]))
 
 
-def compose_answer(question: str, lang: str, extra_by_topic: dict | None = None) -> dict:
+def compose_answer(question: str, lang: str, extra_by_topic: dict | None = None, user_id: str = None) -> dict:
     """Return the verified final answer built strictly from the knowledge pack
     (plus any owner-added answers passed in ``extra_by_topic``).
 
@@ -238,6 +239,13 @@ def compose_answer(question: str, lang: str, extra_by_topic: dict | None = None)
         lang = "en"
     extra_by_topic = extra_by_topic or {}
     topics = detect_topics(question)
+
+    if "daily" in topics:
+        import datetime
+        seed = f"{user_id or 'anon'}:{datetime.datetime.now(datetime.timezone.utc).date()}:{lang}"
+        ans = daily_reading(seed, lang)
+        return {"answer": f"{_pick_opening(lang)}{ans}", "topics": topics, "primary": "daily"}
+
     if topics == ["general"] or "general" in topics:
         topics = [t for t in topics if t != "general"] or list(DEFAULT_TOPICS)
     primary = topics[0]

@@ -266,3 +266,52 @@ class TestOwnerConsole:
         r = s.post(f"{API}/owner/customers/{me['id']}/active",
                    json={"active": False}, headers=auth(owner_token))
         assert r.status_code == 400
+
+    def test_consult_marriage_knowledge(self, s, customer_token):
+        r = s.post(f"{API}/oracle/consult",
+                   json={"question": "meri shaadi kab hogi?", "lang": "en"},
+                   headers=auth(customer_token))
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert "answer" in d
+        # the new logic should return a safe answer from built-in oracle or natural language, not raw document chunks
+        assert "7th Partners, contracts" not in d["answer"]
+        assert "marriage" in [t.lower() for t in d.get("topics", [])] or "relationships" in [t.lower() for t in d.get("topics", [])]
+
+    def test_consult_daily_reading(self, s, customer_token):
+        r = s.post(f"{API}/oracle/consult",
+                   json={"question": "aaj ka mera din kaisa jaega?", "lang": "hi"},
+                   headers=auth(customer_token))
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert "answer" in d
+        assert "Personal Year, Personal Month" not in d["answer"]
+        assert d["primary"] == "daily"
+
+    def test_consult_career_opportunity(self, s, customer_token):
+        r = s.post(f"{API}/oracle/consult",
+                   json={"question": "career me next opportunity kab milegi?", "lang": "hi"},
+                   headers=auth(customer_token))
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert "answer" in d
+        assert "career" in [t.lower() for t in d.get("topics", [])]
+
+    def test_consult_finance_improvement(self, s, customer_token):
+        r = s.post(f"{API}/oracle/consult",
+                   json={"question": "meri financial situation kaise improve hogi?", "lang": "en"},
+                   headers=auth(customer_token))
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert "answer" in d
+        assert "money" in [t.lower() for t in d.get("topics", [])]
+
+    def test_consult_unknown_safe_fallback(self, s, customer_token):
+        r = s.post(f"{API}/oracle/consult",
+                   json={"question": "what is the speed of light in vacuum according to occult physics?", "lang": "en"},
+                   headers=auth(customer_token))
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert "answer" in d
+        assert isinstance(d["answer"], str)
+        assert len(d["answer"]) > 5

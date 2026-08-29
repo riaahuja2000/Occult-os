@@ -554,11 +554,7 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
         "reference document",
         "knowledge base",
         "document purpose",
-        "introduction",
-        "7th partners, contracts",
-        "personal year, personal month",
-        "deterministic function",
-        "open counterparts"
+        "introduction"
     )
 
     blocks = re.split(
@@ -575,10 +571,24 @@ def _relevant_knowledge_text(question: str, text: str, topics=None):
             block
         ).strip()
 
-        if len(clean) < 25:
+        if not clean:
+            continue
+
+        word_list = clean.split()
+
+        # Exclude purely uppercase/title lines (headings)
+        if len(word_list) > 0 and sum(1 for w in word_list if w.isupper() or w.istitle()) / len(word_list) > 0.7:
+             continue
+
+        # Exclude short fragments without sentence structure
+        if len(word_list) < 6 and not any(char in clean for char in ".!?"):
             continue
 
         low = clean.lower()
+
+        # Exclude technical specification text generically
+        if "deterministic function" in low or "algorithm" in low or "specification" in low:
+            continue
 
         if any(
             junk in low
@@ -666,92 +676,89 @@ async def consult(body: ConsultBody, user: dict = Depends(get_current_user)):
 
     topics = oracle.detect_topics(question)
 
-    # We must explicitly check the question for daily intent words because the
-    # original oracle.detect_topics does not have a "daily" class in LIFE_KEYWORDS.
-    q_lower = question.lower()
-    is_daily = any(w in q_lower for w in ["aaj", "today", "daily", "day", "din", "tomorrow", "kal"])
+    normalized_topics = {
+        str(t).strip().lower()
+        for t in topics
+        if str(t).strip()
+    }
 
-    if is_daily:
-        topics = ["daily"]
-        answer_text = oracle.daily_reading(f"{user['id']}:{datetime.now(timezone.utc).date()}:{body.lang}", body.lang)
-        result = {
-            "answer": answer_text,
-            "topics": topics,
-            "primary": "daily",
-        }
-    else:
-        normalized_topics = {
-            str(t).strip().lower()
-            for t in topics
-            if str(t).strip()
-        }
+    best_score = 0
+    best_answer = ""
+    best_entry = None
 
-        best_score = 0
-        best_answer = ""
-        best_entry = None
+    cursor = db.knowledge_entries.find({
+        "deleted_at": None
+    }).limit(3000)
 
-        cursor = db.knowledge_entries.find({
-            "deleted_at": None
-        }).limit(3000)
+    try:
+        async for entry in cursor:
+            entry_text = str(
+                entry.get("text", "")
+            ).strip()
 
-        try:
-            async for entry in cursor:
-                entry_text = str(
-                    entry.get("text", "")
-                ).strip()
+            if not entry_text:
+                continue
 
-                if not entry_text:
-                    continue
-
-                score, candidate = _relevant_knowledge_text(
-                    question,
-                    entry_text,
-                    topics
-                )
-
-                if not candidate:
-                    continue
-
-                entry_topic = str(
-                    entry.get("topic", "")
-                ).strip().lower()
-
-                entry_lang = str(
-                    entry.get("lang", "")
-                ).strip().lower()
-
-                # Prefer the correct topic.
-                if (
-                    entry_topic
-                    and entry_topic in normalized_topics
-                ):
-                    score += 10
-
-                # Prefer same-language knowledge,
-                # but still allow another language if relevant.
-                if (
-                    entry_lang
-                    and entry_lang == body.lang
-                ):
-                    score += 4
-
-                if score > best_score:
-                    best_score = score
-                    best_answer = candidate
-                    best_entry = entry
-        except Exception as e:
-            logger.error(f"Error retrieving knowledge entries: {e}")
-
-        if best_answer:
-            topic_name = best_entry.get("topic", "") if best_entry else topics[0] if topics else "General"
-            result = oracle.compose_answer(
+            score, candidate = _relevant_knowledge_text(
                 question,
-                body.lang,
-                extra_by_topic={topic_name: [best_answer]}
+                entry_text,
+                topics
             )
+
+            if not candidate:
+                continue
+
+            entry_topic = str(
+                entry.get("topic", "")
+            ).strip().lower()
+
+            entry_lang = str(
+                entry.get("lang", "")
+            ).strip().lower()
+
+            # Prefer the correct topic.
+            if (
+                entry_topic
+                and entry_topic in normalized_topics
+            ):
+                score += 10
+
+            # Prefer same-language knowledge,
+            # but still allow another language if relevant.
+            if (
+                entry_lang
+                and entry_lang == body.lang
+            ):
+                score += 4
+
+            if score > best_score:
+                best_score = score
+                best_answer = candidate
+                best_entry = entry
+    except Exception as e:
+        import logging
+        logging.error(f"Error retrieving knowledge entries: {e}")
+
+    if best_answer:
+        topic_name = best_entry.get("topic", "") if best_entry else topics[0] if topics else "General"
+        result = oracle.compose_answer(
+            question,
+            body.lang,
+            extra_by_topic={topic_name: [best_answer]}
+        )
+    else:
+        # No genuinely relevant uploaded context.
+        # Use the built-in Oracle instead of random file text.
+
+        if "daily" in topics:
+            seed_str = f"{user['id']}:{datetime.now(timezone.utc).date()}:{body.lang}"
+            daily_ans = oracle.daily_reading(seed_str, body.lang)
+            result = {
+                "answer": daily_ans,
+                "topics": topics,
+                "primary": "daily"
+            }
         else:
-            # No genuinely relevant uploaded context.
-            # Use the built-in Oracle instead of random file text.
             result = oracle.compose_answer(
                 question,
                 body.lang
